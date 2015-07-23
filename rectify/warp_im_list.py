@@ -13,18 +13,50 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from scipy.spatial import distance
-#import shapefile as shp
+import shapefile as shp
 
 
 def buildshape(corners, filename):
     """build a shapefile geometry from the vertices of the image in 
-       world coordinates, then save it using the image name"""
+       world coordinates, then save it using the image name. Sub critical"""
       
     #create a shapefile instance
     #shape = shp.writer(shape.POLYGON)
     #shape.poly(parts = [[proj_coords[:,0], proj_coords[:,1]], [proj_coords[:,1], proj_coords[:,2]]
     #                                  [proj_coords[:,3], proj_coords[:,2]], [proj_coords[:,0], proj_coords[:,3]]]
     #shape.save("./", filename)
+
+def worldfile(corners, im_pix, filename, filepath):
+    """build a world file from the vertices of the image in 
+       world coordinates, then save it using the image name.
+       here we build a small array and then dump it to a file
+       
+       input is:
+       - the image file name       
+       - projected corners in world coordinates (*not* bounding box)
+       - pxel resolution as a two-element vector [pix_x, pix_y]
+       - path to warped image files
+       
+       reference:
+       http://support.esri.com/en/knowledgebase/techarticles/detail/17489
+    """
+    world_arr = np.zeros([6,1])
+    #line 1 is the X pixel resolution in M
+    world_arr[0] = im_pix[0]
+    #line 2 is the Y pixel resolution in M
+    world_arr[3] = -im_pix[1]
+    #now the X coord of the top left corner
+    world_arr[4] = np.min(corners[0,:])
+    #and the Y coordinate of the top left corner
+    world_arr[5] = np.max(corners[1,:])
+    
+    #strip some parts from the filename
+    filename = filename[0:len(filename)-4]    
+    
+    np.savetxt(filepath + filename + '.jpgw', world_arr, "%.3f")
+    
+    
+    
 
 #------
 # 2D homogeneous vectors and transformations
@@ -160,24 +192,8 @@ class Attitude:
         return RZ * RY * RX
 
 
-"""original rotaions.<?xml version="1.0" encoding="UTF-8"?>
-<calibration>
-  <projection>frame</projection>
-  <width>8176</width>
-  <height>6132</height>
-  <fx>5.5789338951298647e+04</fx>
-  <fy>5.5746209305310556e+04</fy>
-  <cx>4.1696829466248246e+03</cx>
-  <cy>2.7293660495005729e+03</cy>
-  <skew>-2.3552547036983846e+01</skew>Ground
-  <k1>-2.2446199054378266e+00</k1>
-  <k2>1.5149475420343163e+02</k2>
-  <k3>-1.5110480752456604e+04</k3>
-  <k4>0.0000000000000000e+00</k4>
-  <p1>1.0969536859917986e-03</p1>
-  <p2>4.4291709290477177e-03</p2>
-  <date>2015-05-05T11:44:55Z</date>
-</calibration>
+"""original rotations
+
         RX = np.matrix( 
             [[1,	    0,		    0,		    0],
              [0,	    np.cos(roll),   -np.sin(roll),  0],
@@ -251,8 +267,6 @@ class Camera:
 
 
 
-
-
 #===========
 
 # Set up example camera and ground plane
@@ -266,27 +280,20 @@ class Camera:
 #HPR
 #306.977 -3.119 1.668
 
+#need to know LiDAR mean range for the flight - let's say it is -30m
+# relative to the ellipsoid... so we add that to aircraft Z.
+
 xpix = 8176
 ypix = 6132
+sensor_x = 0.048
+sensor_y = 0.036
+focal_len = 0.028
 
-camera = Camera(
-    hom3(74.817, -55.157, 303.97), 
-    Attitude(306.977 - 180, -3.119, 1.668),
-    Sensor((8176, 6132), (0.048, 0.036), 0.028))
-
-# Set up corners of the 640 x 480 pixel image in pixel coordinates
-"""
-bot = hom2(0, 0)
-topleft = hom2(0, 8176)
-botright = hom2(6132, 0)
-topright =hom2(6132, 8176)"""
-
+# Set up corners of the image in pixel coordinates
 botleft = hom2(0, 6132)
 topleft = hom2(0, 0)
 botright = hom2(8176, 6132)
 topright =hom2(8176, 0)
-
-# Note, pass coordinates in the order below...
 
 raw_coords = np.hstack([topleft, topright, botright, botleft])
 print("Pixel Coordinates:\n{}".format(raw_coords))
@@ -294,92 +301,153 @@ print("Pixel Coordinates:\n{}".format(raw_coords))
 # Ground plane is z=0
 ground = plane(hom3(0,0,1), hom3(0,0,0))
 
-proj_coords = np.hstack([
-    camera.project(topleft, ground), camera.project(topright, ground),
-    camera.project(botright, ground), camera.project(botleft, ground)
-])
+im_dir = '../SIPEX2_f9_test/'
 
-print("Ground Coordinates:\n{}".format(proj_coords))
+trajectory_file = '../SIPEX2_f9_test/20121003_f9_survey_testims_utm.txt'
+imlist = '../SIPEX2_f9_test/imnames.txt'
 
-##now we have some ground coordinates to make projection data, we
-#make a display image
-# a translation and scale. First, scale
+lidar_z = -2.5
+# this will be replaced by an estimate for each camera centre...
 
-#length of each side...
+cameracentres = np.genfromtxt(trajectory_file)
 
-toplen = distance.euclidean(proj_coords[:,0], proj_coords[:,1])
-rightlen = distance.euclidean(proj_coords[:,1], proj_coords[:,2])
-botlen =  distance.euclidean(proj_coords[:,3], proj_coords[:,2])
-leftlen = distance.euclidean(proj_coords[:,0], proj_coords[:,3])
+#apply any boresight misalignment information...
+# from the 2012 camberidge calibration flight.
+#can be determined empirically if you have time!
+h_adj = -1.93
+p_adj = 1.8292
+r_adj = 1.2262
 
-worldres_top = toplen/xpix
-worldres_bot = botlen/xpix
-worldres_x = np.mean([worldres_top, worldres_bot])
-
-print("mean X pixel resolution:\n{}".format(worldres_x))
-
-worldres_left = leftlen/ypix
-worldres_right = rightlen/ypix
-worldres_y = np.mean([worldres_left, worldres_right])
-
-print("mean Y pixel resolution:\n{}".format(worldres_y))
-
-#display_coords
-
-world_bbox_x = np.ceil(np.max(proj_coords[0,:]) + np.abs(np.min(proj_coords[1,:])))
-world_bbox_y = np.ceil(np.max(proj_coords[1,:]) + np.abs(np.min(proj_coords[1,:])))
-
-print("world bbox X:\n{}".format(world_bbox_x))
-print("world bbox Y:\n{}".format(world_bbox_y))
-
-pix_bbox_x = np.ceil(world_bbox_x / worldres_x)
-pix_bbox_y = np.ceil(world_bbox_y / worldres_y)
-
-print("pixel bbox X:\n{}".format(pix_bbox_x))
-print("pixel bbox Y:\n{}".format(pix_bbox_y))
-
-# Plot before (blue) and after (red) points on same plot with
-# camera in orange 
-#plt.scatter(raw_coords[0,:], raw_coords[1,:])
-plt.scatter(proj_coords[0,:], proj_coords[1,:], color='red')
-
-plt.show()
-
-##image warping test...
-pos_z = 303.97
-focal = 0.028
+cameracentres[:,6] = cameracentres[:,6] + h_adj  
+cameracentres[:,5] = cameracentres[:,5] + p_adj  
+cameracentres[:,4] = cameracentres[:,4] + r_adj  
 
 
-camera2 = Camera(
-    hom3(pix_bbox_x/2, pix_bbox_y/2, 303.97/worldres_x), 
-    Attitude(306.977 - 180, -3.119, 1.668),
-    Sensor((8176, 6132), (0.048, 0.036), 0.028))
+with open(imlist) as f:
+    image_list = f.read().splitlines()
 
-im_plot_coords = np.hstack([
-    camera2.project(topleft, ground), camera2.project(topright, ground),
-    camera2.project(botright, ground), camera2.project(botleft, ground)
+i = 0
+#now to time-dependent things...
+for image in image_list:
+    flight_x = cameracentres[i,1]
+    flight_y = cameracentres[i,2]
+    flight_z = cameracentres[i,3]
+    
+    flight_h = cameracentres[i,6]
+    flight_p = cameracentres[i,5]
+    flight_r = cameracentres[i,4]
+    
+    range_to_ground = flight_z - lidar_z;
+    print("camera E:\n{}".format(flight_x))
+    print("camera N:\n{}".format(flight_y))
+    print("camera U:\n{}".format(range_to_ground))
+    print("camera H:\n{}".format(flight_h))
+    print("camera P:\n{}".format(flight_p))
+    print("camera R:\n{}".format(flight_r))
+    
+    camera = Camera(
+        hom3(flight_x, flight_y, range_to_ground), 
+        Attitude(flight_h - 180, flight_p, flight_r),
+        Sensor((xpix, ypix), (sensor_x, sensor_y), focal_len))
+    
+    proj_coords = np.hstack([
+        camera.project(topleft, ground), camera.project(topright, ground),
+        camera.project(botright, ground), camera.project(botleft, ground)
     ])
+    
+    print("Ground Coordinates:\n{}".format(proj_coords))
+    
+    ##now we have some ground coordinates to make projection data, we
+    #make a display image
+    # a translation and scale. First, scale
+    
+    #length of each side...
+    
+    toplen = distance.euclidean(proj_coords[:,0], proj_coords[:,1])
+    rightlen = distance.euclidean(proj_coords[:,1], proj_coords[:,2])
+    botlen =  distance.euclidean(proj_coords[:,3], proj_coords[:,2])
+    leftlen = distance.euclidean(proj_coords[:,0], proj_coords[:,3])
+    
+    worldres_top = toplen/xpix
+    worldres_bot = botlen/xpix
+    worldres_x = np.mean([worldres_top, worldres_bot])
+    
+    print("mean X pixel resolution:\n{}".format(worldres_x))
+    
+    worldres_left = leftlen/ypix
+    worldres_right = rightlen/ypix
+    worldres_y = np.mean([worldres_left, worldres_right])
+    
+    print("mean Y pixel resolution:\n{}".format(worldres_y))
+    
+    #display_coords
+    
+    world_bbox_x = np.ceil(np.max(proj_coords[0,:]) - np.abs(np.min(proj_coords[0,:])))
+    world_bbox_y = np.ceil(np.max(proj_coords[1,:]) - np.abs(np.min(proj_coords[1,:])))
+    
+    print("world bbox X:\n{}".format(world_bbox_x))
+    print("world bbox Y:\n{}".format(world_bbox_y))
+    
+    pix_bbox_x = np.ceil(world_bbox_x / worldres_x)
+    pix_bbox_y = np.ceil(world_bbox_y / worldres_y)
+    
+    print("pixel bbox X:\n{}".format(pix_bbox_x))
+    print("pixel bbox Y:\n{}".format(pix_bbox_y))
+    
+    
+    ##problem here - we're not projecting from the centroid of a bounding box...  
+    ##so we start with an arbitrary x/y
+    camera2 = Camera(
+        #hom3(pix_bbox_x/2, pix_bbox_y/2, flight_z/worldres_x), 
+        hom3(10000, 10000, flight_z/worldres_x),
+        Attitude(flight_h - 180, flight_p, flight_r),
+        Sensor((xpix, ypix), (sensor_x, sensor_y), focal_len))
+    
+    im_plot_coords = np.hstack([
+        camera2.project(topleft, ground), camera2.project(topright, ground),
+        camera2.project(botright, ground), camera2.project(botleft, ground)
+        ])
+    
+    ##and compute a bounding box from the pixel dimensions in im_pot_coords
+    pix_bbox_x = np.max(np.ceil(im_plot_coords[0,:])) - np.min(np.floor(im_plot_coords[0,:]))
+    pix_bbox_y = np.max(np.ceil(im_plot_coords[1,:])) - np.min(np.floor(im_plot_coords[1,:]))
 
-plot_bbox_x = np.ceil(np.max(im_plot_coords[0,:]) + np.abs(np.min(im_plot_coords[1,:])))
-plot_bbox_y = np.ceil(np.max(im_plot_coords[1,:]) + np.abs(np.min(im_plot_coords[1,:])))
+    print("pixel bbox X:\n{}".format(pix_bbox_x))
+    print("pixel bbox Y:\n{}".format(pix_bbox_y)) 
+    
+    #from_coords = raw_coords[0:2,:]
+    from_coords = np.float32(raw_coords[0:2,:])
 
+    
+    #to_coords = im_plot_coords[0:2,:]
+    # a hah! we need to reset these so that uppermost Y = 0, leftmost X = 0...
+    
+    #lets try...
+    trans_coords = np.zeros_like(im_plot_coords)
+    trans_coords[0,:] = im_plot_coords[0,:] - np.min(im_plot_coords[0,:])
+    trans_coords[1,:] = im_plot_coords[1,:] - np.min(im_plot_coords[1,:])   
+    
+    to_coords = np.float32(trans_coords[0:2,:]) 
+    #to_coords = np.float32(im_plot_coords[0:2,:]) 
+ 
+  
+    img = io.imread(im_dir + image)
+    
+    p_tform = cv2.getPerspectiveTransform(from_coords.T, to_coords.T)
 
+    img_rot = cv2.warpPerspective(img, p_tform, (np.int(pix_bbox_x), np.int(pix_bbox_y)), cv2.INTER_LANCZOS4)
+    
+    #img_rot = cv2.warpPerspective(img, p_tform, (np.int(pix_bbox_x), np.int(pix_bbox_y)))
+    
+    im_pix = img_rot.shape
+    #punch out a little world file for warped images    
+    worldfile(proj_coords, (worldres_x, worldres_y), image, '../warped/')
+    
+    #f, (ax0, ax1) = plt.subplots(1, 2)
+    #ax0.imshow(img, cmap=plt.cm.gray, interpolation='nearest')
+    #ax1.imshow(img_rot, cmap=plt.cm.gray, interpolation='nearest')
+    #plt.show()
+    
+    cv2.imwrite('../warped/'+image, img_rot)
+    i = i+1
 
-
-from_coords = raw_coords[0:2,:]
-#to_coords = float32(proj_coords[0:2,:])
-
-to_coords = im_plot_coords[0:2,:]
-
-img = io.imread('../undistorted/20121023_f13_0044.jpg')
-
-p_tform = cv2.getPerspectiveTransform(from_coords.T, to_coords.T)
-
-img_rot = cv2.warpPerspective(img, p_tform,  (plot_bbox_x, plot_bbox_y))
-
-f, (ax0, ax1) = plt.subplots(1, 2)
-ax0.imshow(img, cmap=plt.cm.gray, interpolation='nearest')
-ax1.imshow(img_rot, cmap=plt.cm.gray, interpolation='nearest')
-plt.show()
-
-cv2.imwrite("../warped/20121023_044_rotated.jpg", img_rot)
