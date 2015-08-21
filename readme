@@ -1,0 +1,56 @@
+Python code for classifying and warping images
+-----------------------------------------------
+Adam Steer, August 2015
+
+Made with a lot of help from Dr Mark Reid at NICTA (http://www.nicta
+
+...and support from:
+- The University of Tasmania School of Land and Food, discipline of Spatial Science
+- The Antarctic Climate and Ecosystems Cooperative Research Centre (http://www.acecrc.org.au)
+- The Australian Antarctic Division (http://www.antarctica.gov.au).
+
+The code here is some experimental work on projecting aerial photographs
+of sea ice onto a plane, and doing a basic classification.
+
+Requires:
+---------
+Python3
+openCV3
+scikit-image
+pyshape
+
+
+Contents by folder:
+#-------------------------------------------------------------------------------------------------
+rectify
+-------
+Input data are a set of camera orientations in an arbitrary cartesian coordinate system (E, N, Up),
+and a set of images.
+
+Output is a set of images rotated and projected onto a plane, with world files.
+
+scripts:
+
+undistort.py: In here is code to apply a lens distortion correction to a directory of images
+
+warp_im_list.py: This code snippet takes a list of camera orientations (text file) and a directory
+                 corresponding images as input. It does the reprojection and world file production
+                 
+warp_MR.py: A single-shot version of warp_im_list.py
+
+#-------------------------------------------------------------------------------------------------
+classify
+--------
+Input data is a single image, output at present is a classified image.
+
+Mostly experiments with unsupervised classification in here, using SLIC superpixel segmentation and graph cuts for region merging.
+
+Files are self-describing, more here when it iterates toward tidiness!
+
+Much help has been obtained from blog posts here:
+
+http://vcansimplify.wordpress.com/
+
+
+
+
