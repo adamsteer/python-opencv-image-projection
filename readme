@@ -29,6 +29,24 @@ and a set of images.
 
 Output is a set of images rotated and projected onto a plane, with world files.
 
+This code does not work for scenarios where there is actual terrain - it is designed for
+sea ice imagery, so imagery is projected onto a flat plane (x,y) = 0. If you have terrain, feel free
+to fork the code and build methods for dealing with it.
+
+It also has no method for rigourous image matching (ie SiFT -> RANSAC). It relies on very good
+knowledge of aircraft position, aircraft attitude, and camera boresight misalignment.
+
+If you're after a way to stitch images together to make an orthomosaic or terrain model, check 
+out the VisualSfM toolkit:
+
+http://ccwu.me/vsfm/
+
+..or any number of excellent commercial software packages which do these jobs and might save you a lot
+of developer time, e.g. AgiSoft Photoscan, Pix4D, .....
+
+The code here was built because these packages don't serve a specific need - which was to project images
+onto a plane using only aircraft orientation in an arbitrary coordinate system.
+
 scripts:
 
 undistort.py: In here is code to apply a lens distortion correction to a directory of images
