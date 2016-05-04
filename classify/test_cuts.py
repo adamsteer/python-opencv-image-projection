@@ -3,6 +3,8 @@
 Created on Sat Apr  4 20:21:26 2015
 
 @author: adam
+
+
 """
 
 from skimage import graph, data, io, segmentation, color
