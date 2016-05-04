@@ -3,6 +3,8 @@
 Created on Sun Mar 22 09:25:19 2015
 
 @author: adam
+
+Testing segmentation using a random walker method
 """
 
 import numpy as np
