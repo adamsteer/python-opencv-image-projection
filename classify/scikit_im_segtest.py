@@ -3,6 +3,8 @@
 Created on Sun Mar 22 09:55:49 2015
 
 @author: adam
+
+Adding LBP to an image, then using SLIC segmentation and RAG merging
 """
 
 from __future__ import print_function
