@@ -3,6 +3,8 @@
 Created on Sat Mar 21 21:35:02 2015
 
 @author: adam
+
+segmentation using a region adjacency graph for merging
 """
 
 from skimage import data, io, segmentation, color
