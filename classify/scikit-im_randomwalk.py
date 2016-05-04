@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 
 from skimage.segmentation import random_walker
 
-
 #def microstructure(l=256):
 #    """
 #    Synthetic binary data: binary microstructure with blobs.
