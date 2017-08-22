@@ -1,4 +1,4 @@
-# warpng images based on camera position/orientation
+# warping images based on camera position/orientation
 
 the bits of code do a couple of jobs:
 
@@ -15,3 +15,5 @@ The biggest headache is openCV.
 It also relies on scikits-image and scipy.spatial
 
 Better documentation to come! And maybe better code...
+
+
