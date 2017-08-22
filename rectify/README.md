@@ -12,3 +12,6 @@ This stuff was designed as a quick and dirty image warper for some research work
 ## dependencies
 
 The biggest headache is openCV.
+It also relies on scikits-image and scipy.spatial
+
+Better documentation to come! And maybe better code...
